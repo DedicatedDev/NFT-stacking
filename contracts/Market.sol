@@ -46,6 +46,7 @@ contract Market is
         IMarket.NFT memory _nft = _stackedNFTs[msg.sender][_lpTokenId];
         nft721 = IERC721Upgradeable(_nft.contractAddress);
         nft721.transferFrom(address(this), msg.sender, _nft.tokenId);
+        delete _stackedNFTs[msg.sender][_lpTokenId];
     }
 
     function staking(NFT memory _nft) external virtual override whenNotPaused {
