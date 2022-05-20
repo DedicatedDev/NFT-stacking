@@ -31,7 +31,7 @@ contract Market is
     function _authorizeUpgrade(address) internal override onlyAdmin {}
 
     function _mintLpNFTToken(string memory tokenURI, NFT memory _nft)
-        private
+        internal
         returns (uint256)
     {
         _tokenIds.increment();
@@ -48,7 +48,7 @@ contract Market is
         nft721.transferFrom(address(this), msg.sender, _nft.tokenId);
     }
 
-    function staking(NFT memory _nft) external override whenNotPaused {
+    function staking(NFT memory _nft) external virtual override whenNotPaused {
         nft721 = IERC721Upgradeable(_nft.contractAddress);
         nft721.transferFrom(msg.sender, address(this), _nft.tokenId);
         uint256 lpTokenId = _mintLpNFTToken(_nft.tokenUri, _nft);
@@ -64,5 +64,9 @@ contract Market is
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    function getMyToken(uint256 lpTokenId) external view returns (NFT memory) {
+        return _stackedNFTs[msg.sender][lpTokenId];
     }
 }

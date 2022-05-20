@@ -1,5 +1,5 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { expect } from "chai";
+import { expect, use } from "chai";
 import { BigNumber, ContractTransaction } from "ethers";
 import { ethers, upgrades } from "hardhat";
 import {
@@ -102,5 +102,94 @@ describe("Market", function () {
       BigNumber.from(0)
     );
     expect(await aliceNFT.balanceOf(user1.address)).to.equal(BigNumber.from(1));
+  });
+
+  it("pause market contract", async () => {
+    //Mint NFT from AliceNFT
+    const firstEvent: <T extends TypedEvent<any>>(
+      p: Promise<ContractTransaction>
+    ) => Promise<T["args"]> = (p) =>
+      p.then((t) => t.wait()).then((t) => (t.events || [])[0].args);
+
+    const tokenId = (
+      await firstEvent<NewAliceTokenEvent>(
+        aliceNFT
+          .connect(user1)
+          .claimToken(tokenUri, { value: ethers.utils.parseEther("0.01") })
+      )
+    ).tokenId;
+
+    //Stacking NFT to Market contract
+    await aliceNFT.connect(user1).approve(market.address, tokenId);
+    await market.pause();
+    await expect(
+      market.connect(user1).staking({
+        contractAddress: aliceNFT.address,
+        tokenId: tokenId,
+        tokenUri: tokenUri,
+      })
+    ).to.be.revertedWith("Pausable: paused");
+  });
+
+  it("revert pause market contract by none owner", async () => {
+    //Mint NFT from AliceNFT
+    const firstEvent: <T extends TypedEvent<any>>(
+      p: Promise<ContractTransaction>
+    ) => Promise<T["args"]> = (p) =>
+      p.then((t) => t.wait()).then((t) => (t.events || [])[0].args);
+
+    const tokenId = (
+      await firstEvent<NewAliceTokenEvent>(
+        aliceNFT
+          .connect(user1)
+          .claimToken(tokenUri, { value: ethers.utils.parseEther("0.01") })
+      )
+    ).tokenId;
+
+    //Stacking NFT to Market contract
+    await aliceNFT.connect(user1).approve(market.address, tokenId);
+    await expect(market.connect(user1).pause()).to.be.reverted;
+  });
+
+  it("upgrade market contract to v2", async () => {
+    //Mint NFT from AliceNFT
+    const firstEvent: <T extends TypedEvent<any>>(
+      p: Promise<ContractTransaction>
+    ) => Promise<T["args"]> = (p) =>
+      p.then((t) => t.wait()).then((t) => (t.events || [])[0].args);
+
+    const tokenId = (
+      await firstEvent<NewAliceTokenEvent>(
+        aliceNFT
+          .connect(user1)
+          .claimToken(tokenUri, { value: ethers.utils.parseEther("0.01") })
+      )
+    ).tokenId;
+
+    //Stacking NFT to Market contract
+    await aliceNFT.connect(user1).approve(market.address, tokenId);
+    const lpTokenId = (
+      await firstEvent<NewLPTokenEvent>(
+        market.connect(user1).staking({
+          contractAddress: aliceNFT.address,
+          tokenId: tokenId,
+          tokenUri: tokenUri,
+        })
+      )
+    ).tokenId;
+
+    const marketV2Factory = await ethers.getContractFactory("MarketV2");
+    const marketV2 = await upgrades.upgradeProxy(market, marketV2Factory);
+
+    //check contract address is same or not
+    expect(marketV2.address).to.equal(market.address);
+    //after update, check stacked NFT exist or not.
+    const nft = await marketV2.connect(user1).getMyToken(lpTokenId);
+    expect(nft.tokenId).to.equal(tokenId);
+    //check migrate function is working or not in version 2
+    expect(await marketV2.connect(user1).staking(nft)).to.emit(
+      marketV2,
+      "ASSERT"
+    );
   });
 });
